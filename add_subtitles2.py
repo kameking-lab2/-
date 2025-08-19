@@ -1,14 +1,23 @@
+"""Generate subtitles for MP4 files and optionally burn them into the videos."""
+
 import argparse
 import concurrent.futures
 from pathlib import Path
 import subprocess
 import whisper
 
+
 def format_timestamp(seconds: float) -> str:
+    """Return an SRT timestamp (``HH:MM:SS,mmm``) for ``seconds``."""
     hours = int(seconds // 3600)
     minutes = int((seconds % 3600) // 60)
     secs = seconds % 60
     return f"{hours:02}:{minutes:02}:{secs:06.3f}".replace(".", ",")
+
+
+def _escape_for_ffmpeg(path: Path) -> str:
+    """Escape ``path`` for ffmpeg's subtitles filter."""
+    return path.as_posix().replace(":", r"\:")
 
 def transcribe(video_path: Path, model_name: str = "small") -> Path:
     model = whisper.load_model(model_name)
@@ -23,13 +32,14 @@ def transcribe(video_path: Path, model_name: str = "small") -> Path:
     return srt_path
 
 def burn_subtitles(video_path: Path, srt_path: Path, output_path: Path) -> None:
+    subtitle_filter = f"subtitles={_escape_for_ffmpeg(srt_path)}"
     subprocess.run(
         [
             "ffmpeg",
             "-i",
             str(video_path),
             "-vf",
-            f"subtitles={srt_path}",
+            subtitle_filter,
             "-c:a",
             "copy",
             str(output_path),
